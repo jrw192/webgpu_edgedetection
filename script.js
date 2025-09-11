@@ -72,6 +72,40 @@ async function main(gridSize) {
     };
     const outputTexture = device.createTexture(outputTextureDescriptor);
 
+    // ------------ vertex + frag shader module ------------
+    const shaderModule = device.createShaderModule({
+        label: "shader module",
+        code: /*wgsl*/`
+          struct FragmentInput {
+            @location(1) instance: f32,
+          }
+
+            @group(0) @binding(0) var inputTexture: texture_2d<f32>;
+            @group(0) @binding(2) var sampler_instance: sampler;
+
+            @vertex
+            fn vertexMain(@builtin(vertex_index) in_vertex_index: u32) -> @builtin(position) vec4<f32> {
+               let pos = array<vec2<f32>, 6>(
+                    vec2<f32>( 1.0,  1.0),
+                    vec2<f32>( 1.0, -1.0),
+                    vec2<f32>(-1.0, -1.0),
+                    vec2<f32>( 1.0,  1.0),
+                    vec2<f32>(-1.0, -1.0),
+                    vec2<f32>(-1.0,  1.0)
+                );
+                return vec4<f32>(pos[in_vertex_index], 0.0, 1.0);
+            }
+            
+            @fragment
+            fn fragmentMain(@builtin(position) fragCoord: vec4<f32>) -> @location(0) vec4<f32> {
+                let textureSize = vec2<f32>(textureDimensions(inputTexture));
+                let uv = fragCoord.xy / textureSize;
+                
+                return textureSample(inputTexture, sampler_instance, uv);
+            }
+        `
+    });
+
     // ------------ compute shader ------------
     const WORKGROUP_SIZE = 8;
     const computeShaderModule = device.createShaderModule({
@@ -91,7 +125,7 @@ async function main(gridSize) {
         label: "bind group layout",
         entries: [{
             binding: 0,
-            visibility: GPUShaderStage.COMPUTE,
+            visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT | GPUShaderStage.COMPUTE,
             texture: {
                 sampleType: "float",
                 viewDimension: "2d",
@@ -104,6 +138,12 @@ async function main(gridSize) {
                 format: "rgba8unorm",
                 viewDimension: "2d",
             },
+        }, {
+            binding: 2,
+            visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT,
+            sampler: {
+            type: 'filtering',
+        }
         }]
     });
 
@@ -122,10 +162,33 @@ async function main(gridSize) {
         {
             binding: 1,
             resource: outputTexture.createView(),
+        },
+        {
+            binding: 2,
+            resource: device.createSampler({
+                magFilter: 'linear',
+                minFilter: 'linear',
+            }),
         }],
     });
 
     // ------------ render + compute pipelines ------------
+    const renderPipeline = device.createRenderPipeline({
+        label: "render pipeline",
+        layout: pipelineLayout,
+        vertex: {
+            module: shaderModule,
+            entryPoint: "vertexMain",
+        },
+        fragment: {
+            module: shaderModule,
+            entryPoint: "fragmentMain",
+            targets: [{
+                format: canvasFormat,
+            }]
+        }
+    });
+
     const computePipeline = device.createComputePipeline({
         label: "compute pipeline",
         layout: pipelineLayout,
@@ -145,7 +208,24 @@ async function main(gridSize) {
 
         computePass.dispatchWorkgroups(workgroupCount, workgroupCount);
         computePass.end();
+
+
+        const renderPass = encoder.beginRenderPass({
+            colorAttachments: [{
+                view: context.getCurrentTexture().createView(),
+                loadOp: "clear",
+                clearValue: { r: 0, g: 0, b: 0, a: 1 },
+                storeOp: "store",
+            }]
+        });
+        renderPass.setBindGroup(0, bindGroup);
+
+        renderPass.setPipeline(renderPipeline);
+        renderPass.draw(6, 1, 0, 0); // 6 vertices for 2 triangles
+        renderPass.end();
+
         device.queue.submit([encoder.finish()]);
+
     }
 
     render();
