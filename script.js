@@ -10,7 +10,9 @@ async function main(gridSize) {
     if (!adapter) {
         throw new Error("No appropriate GPUAdapter found.");
     }
-    const device = await adapter.requestDevice();
+    const device = await adapter.requestDevice({
+        // requiredFeatures: ["float32-blendable"],
+    });
 
     const context = canvas.getContext("webgpu");
     const canvasFormat = navigator.gpu.getPreferredCanvasFormat();
@@ -52,7 +54,7 @@ async function main(gridSize) {
     const textureDescriptor = {
         label: "input texture",
         size: [image_X, image_Y],
-        format: 'rgba8unorm',
+        format: 'r32float',
         usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST | GPUTextureUsage.RENDER_ATTACHMENT,
     };
     const texture = device.createTexture(textureDescriptor);
@@ -67,7 +69,7 @@ async function main(gridSize) {
     const outputTextureDescriptor = {
         label: "output texture",
         size: [image_X, image_Y],
-        format: 'rgba8unorm',
+        format: 'r32float',
         usage: GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.COPY_DST | GPUTextureUsage.RENDER_ATTACHMENT,
     };
     const outputTexture = device.createTexture(outputTextureDescriptor);
@@ -76,12 +78,12 @@ async function main(gridSize) {
     const shaderModule = device.createShaderModule({
         label: "shader module",
         code: /*wgsl*/`
-          struct FragmentInput {
+            struct FragmentInput {
             @location(1) instance: f32,
-          }
+            }
 
             @group(0) @binding(0) var inputTexture: texture_2d<f32>;
-            // @group(0) @binding(1) var outputTexture: texture_2d<f32>;
+            @group(0) @binding(1) var outputTexture: texture_storage_2d<r32float, read_write>;
             @group(0) @binding(2) var sampler_instance: sampler;
 
             @vertex
@@ -99,10 +101,11 @@ async function main(gridSize) {
             
             @fragment
             fn fragmentMain(@builtin(position) fragCoord: vec4<f32>) -> @location(0) vec4<f32> {
-                let textureSize = vec2<f32>(textureDimensions(inputTexture));
+                let textureSize = vec2<f32>(textureDimensions(outputTexture));
                 let uv = fragCoord.xy / textureSize;
-                
-                return textureSample(inputTexture, sampler_instance, uv);
+                let coords = vec2<u32>(uv * textureSize);
+
+                return textureLoad(outputTexture, coords);
             }
         `
     });
@@ -114,7 +117,7 @@ async function main(gridSize) {
         code: /*wgsl*/`
 
             @group(0) @binding(0) var inputTexture: texture_2d<f32>;
-            @group(0) @binding(1) var outputTexture: texture_storage_2d<rgba8unorm, write>;
+            @group(0) @binding(1) var outputTexture: texture_storage_2d<r32float, read_write>;
             @compute @workgroup_size(${WORKGROUP_SIZE}, ${WORKGROUP_SIZE})
             fn computeMain() {}
         `
@@ -128,23 +131,23 @@ async function main(gridSize) {
             binding: 0,
             visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT | GPUShaderStage.COMPUTE,
             texture: {
-                sampleType: "float",
+                sampleType: "unfilterable-float",
                 viewDimension: "2d",
             },
         }, {
             binding: 1,
-            visibility: GPUShaderStage.COMPUTE,
+            visibility: GPUShaderStage.FRAGMENT | GPUShaderStage.COMPUTE,
             storageTexture: {
-                access: "write-only",
-                format: "rgba8unorm",
+                access: "read-write",
+                format: "r32float",
                 viewDimension: "2d",
             },
         }, {
             binding: 2,
             visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT,
             sampler: {
-            type: 'filtering',
-        }
+                type: 'filtering',
+            }
         }]
     });
 
