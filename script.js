@@ -118,8 +118,11 @@ async function main(gridSize) {
 
             @group(0) @binding(0) var inputTexture: texture_2d<f32>;
             @group(0) @binding(1) var outputTexture: texture_storage_2d<r32float, read_write>;
-            @compute @workgroup_size(${WORKGROUP_SIZE}, ${WORKGROUP_SIZE})
-            fn computeMain() {}
+            @compute @workgroup_size(${WORKGROUP_SIZE}, ${WORKGROUP_SIZE}, 1)
+            fn computeMain(@builtin(global_invocation_id) id: vec3<u32>) {
+                let value = textureLoad(inputTexture, id.xy, 0);
+                textureStore(outputTexture, id.xy, value);
+            }
         `
     });
 
@@ -208,9 +211,8 @@ async function main(gridSize) {
         const computePass = encoder.beginComputePass();
         computePass.setPipeline(computePipeline);
         computePass.setBindGroup(0, bindGroup);
-        const workgroupCount = Math.ceil(8);
 
-        computePass.dispatchWorkgroups(workgroupCount, workgroupCount);
+        computePass.dispatchWorkgroups(image_X / WORKGROUP_SIZE, image_Y / WORKGROUP_SIZE);
         computePass.end();
 
 
