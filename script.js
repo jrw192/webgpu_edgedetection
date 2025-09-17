@@ -49,6 +49,8 @@ async function main(gridSize) {
     const image_X = imageBitmap.width;
     const image_Y = imageBitmap.height;
 
+    canvas.width = image_X;
+    canvas.height = image_Y;
 
     // ------------ create texture and textureView ------------
     const textureDescriptor = {
@@ -120,8 +122,45 @@ async function main(gridSize) {
             @group(0) @binding(1) var outputTexture: texture_storage_2d<r32float, read_write>;
             @compute @workgroup_size(${WORKGROUP_SIZE}, ${WORKGROUP_SIZE}, 1)
             fn computeMain(@builtin(global_invocation_id) id: vec3<u32>) {
-                let value = textureLoad(inputTexture, id.xy, 0);
-                textureStore(outputTexture, id.xy, value);
+                // top left
+                var coords = vec2<u32>(id.x-1, id.y-1);
+                let valueTL = -1 * textureLoad(inputTexture, coords, 0);
+
+                // top center
+                coords = vec2<u32>(id.x, id.y-1);
+                let valueTC =  0 * textureLoad(inputTexture, coords, 0);
+                
+                // top right
+                coords = vec2<u32>(id.x+1, id.y-1);
+                let valueTR = 1 * textureLoad(inputTexture, coords, 0);
+
+                // center left
+                coords = vec2<u32>(id.x, id.y-1);
+                let valueCL = -2 * textureLoad(inputTexture, coords, 0);
+
+                // center 
+                coords = vec2<u32>(id.x, id.y);
+                let valueCC = 0 * textureLoad(inputTexture, coords, 0);
+
+                // center right
+                coords = vec2<u32>(id.x, id.y+1);
+                let valueCR = 2 * textureLoad(inputTexture, coords, 0);
+
+                // bottom left
+                coords = vec2<u32>(id.x+1, id.y-1);
+                let valueBL = -1 * textureLoad(inputTexture, coords, 0);
+
+                // bottom center
+                coords = vec2<u32>(id.x+1, id.y);
+                let valueBC = 0 * textureLoad(inputTexture, coords, 0);
+
+                // bottom right
+                coords = vec2<u32>(id.x+1, id.y+1);
+                let valueBR = 1 * textureLoad(inputTexture, coords, 0);
+
+                let value = valueTL + valueTC + valueTR + valueCL + valueCC + valueCR + valueBL + valueBC + valueBR;
+
+                textureStore(outputTexture, id.xy, 0.2+value);
             }
         `
     });
