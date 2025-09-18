@@ -135,7 +135,7 @@ async function main(gridSize) {
                 let valueTR = 1 * textureLoad(inputTexture, coords, 0);
 
                 // center left
-                coords = vec2<u32>(id.x, id.y-1);
+                coords = vec2<u32>(id.x-1, id.y);
                 let valueCL = -2 * textureLoad(inputTexture, coords, 0);
 
                 // center 
@@ -143,15 +143,15 @@ async function main(gridSize) {
                 let valueCC = 0 * textureLoad(inputTexture, coords, 0);
 
                 // center right
-                coords = vec2<u32>(id.x, id.y+1);
+                coords = vec2<u32>(id.x+1, id.y);
                 let valueCR = 2 * textureLoad(inputTexture, coords, 0);
 
                 // bottom left
-                coords = vec2<u32>(id.x+1, id.y-1);
+                coords = vec2<u32>(id.x-1, id.y+1);
                 let valueBL = -1 * textureLoad(inputTexture, coords, 0);
 
                 // bottom center
-                coords = vec2<u32>(id.x+1, id.y);
+                coords = vec2<u32>(id.x, id.y+1);
                 let valueBC = 0 * textureLoad(inputTexture, coords, 0);
 
                 // bottom right
